@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Stock Trading Bot</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --green:     #3fb950;
+      --green-dim: #1a4721;
+      --red:       #f85149;
+      --red-dim:   #4a1515;
+      --yellow:    #d29922;
+      --yellow-dim:#3d2e00;
+      --blue:      #58a6ff;
+      --cyan:      #79c0ff;
+      --radius:    8px;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Header bar ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .logo span { color: var(--green); }
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+      max-width: 400px;
+    }
+    .search-bar input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 14px;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .search-bar input:focus { border-color: var(--blue); }
+    .search-bar input::placeholder { font-weight: 400; text-transform: none; color: var(--muted); }
+    .btn {
+      background: var(--blue);
+      border: none;
+      border-radius: var(--radius);
+      color: #0d1117;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 18px;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .status-bar {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    #countdown { color: var(--yellow); font-weight: 600; }
+    #auto-badge {
+      background: var(--green-dim);
+      border: 1px solid var(--green);
+      border-radius: 12px;
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+    }
+
+    /* ── Main layout ── */
+    main {
+      padding: 20px 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* ── Error / placeholder ── */
+    #placeholder {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+    #placeholder h2 { font-size: 22px; margin-bottom: 10px; color: var(--text); }
+    #error-box {
+      display: none;
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      border-radius: var(--radius);
+      color: var(--red);
+      font-weight: 600;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+    }
+
+    /* ── Dashboard grid ── */
+    #dashboard { display: none; }
+
+    .top-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    @media(max-width:900px){ .top-row { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:600px){ .top-row { grid-template-columns: 1fr; } }
+
+    .mid-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    @media(max-width:800px){ .mid-row { grid-template-columns: 1fr; } }
+
+    .bottom-row { margin-bottom: 16px; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .card-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── Price card ── */
+    .price-main {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--green);
+      line-height: 1;
+    }
+    .price-ticker {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+    .price-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+    }
+
+    /* ── Signal card ── */
+    .signal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 28px;
+      font-weight: 800;
+      border-radius: var(--radius);
+      padding: 12px 24px;
+      margin-bottom: 10px;
+    }
+    .signal-badge.BUY  { background: var(--green-dim); color: var(--green); }
+    .signal-badge.SELL { background: var(--red-dim);   color: var(--red); }
+    .signal-badge.HOLD { background: var(--yellow-dim); color: var(--yellow); }
+    .score-row {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+    .score-bull { color: var(--green); font-weight: 700; }
+    .score-bear { color: var(--red);   font-weight: 700; }
+
+    /* ── Confidence card ── */
+    .conf-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--blue);
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+    .conf-bar-bg {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .conf-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width .6s ease;
+    }
+    .conf-label { font-size: 12px; color: var(--muted); }
+
+    /* ── Trade levels card ── */
+    .levels-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .level-item { }
+    .level-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+    .level-value { font-size: 16px; font-weight: 700; }
+    .level-value.entry  { color: var(--cyan); }
+    .level-value.stop   { color: var(--red); }
+    .level-value.t1     { color: var(--green); }
+    .level-value.t2     { color: var(--green); }
+    .level-note { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .rr-row {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rr-label { color: var(--muted); font-size: 12px; }
+    .rr-value  { font-size: 20px; font-weight: 700; color: var(--blue); }
+
+    /* ── Indicators card ── */
+    .ind-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 20px;
+    }
+    .ind-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--surface2);
+      gap: 8px;
+    }
+    .ind-name { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+    .ind-val  { font-size: 13px; font-weight: 600; text-align: right; }
+    .ind-val.green  { color: var(--green); }
+    .ind-val.red    { color: var(--red); }
+    .ind-val.yellow { color: var(--yellow); }
+    .ind-val.cyan   { color: var(--cyan); }
+    .ind-val.blue   { color: var(--blue); }
+
+    /* ── Signals list card ── */
+    .signals-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .sig-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .sig-item.BULL { background: var(--green-dim); }
+    .sig-item.BEAR { background: var(--red-dim); }
+    .sig-badge {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 2px 7px;
+      flex-shrink: 0;
+    }
+    .sig-badge.BULL { background: var(--green); color: #0d1117; }
+    .sig-badge.BEAR { background: var(--red);   color: #fff; }
+
+    /* ── Scan info footer ── */
+    .scan-info {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding: 10px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .scan-info span { color: var(--text); }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header>
+  <div class="logo">Stock <span>Trading</span> Bot</div>
+
+  <div class="search-bar">
+    <input id="ticker-input" type="text" placeholder="Enter ticker (e.g. TSLA)" maxlength="10" />
+    <button class="btn" id="scan-btn" onclick="startScan()">Scan</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <div id="scan-status">No active scan</div>
+    <div id="auto-section" style="display:none">
+      <span id="auto-badge">AUTO-REFRESH ON</span>
+      &nbsp;Next in <span id="countdown">3:00</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────── -->
+<main>
+  <div id="error-box"></div>
+
+  <!-- Placeholder when no scan run yet -->
+  <div id="placeholder">
+    <h2>Enter a ticker symbol above to begin scanning</h2>
+    <p>Pulls live 3-minute candle data from Yahoo Finance — no API key needed.</p>
+    <br/>
+    <p style="color:var(--muted)">Try: TSLA &nbsp;·&nbsp; AAPL &nbsp;·&nbsp; SPY &nbsp;·&nbsp; NVDA &nbsp;·&nbsp; MSFT</p>
+  </div>
+
+  <!-- Dashboard (hidden until first scan) -->
+  <div id="dashboard">
+
+    <!-- Row 1: Price · Signal · Confidence -->
+    <div class="top-row">
+      <div class="card">
+        <div class="card-title">Current Price</div>
+        <div class="price-ticker" id="d-ticker">—</div>
+        <div class="price-main"  id="d-price">$—</div>
+        <div class="price-sub"   id="d-candles">— candles loaded</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Signal</div>
+        <div class="signal-badge HOLD" id="d-badge">■ HOLD</div>
+        <div class="score-row">
+          <div class="score-bull">▲ Bull: <span id="d-bull">—</span></div>
+          <div class="score-bear">▼ Bear: <span id="d-bear">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Confidence</div>
+        <div class="conf-value" id="d-conf">—%</div>
+        <div class="conf-bar-bg">
+          <div class="conf-bar-fill" id="d-conf-bar" style="width:0%;background:var(--blue)"></div>
+        </div>
+        <div class="conf-label" id="d-conf-label">—</div>
+      </div>
+    </div>
+
+    <!-- Row 2: Trade Levels · Indicators -->
+    <div class="mid-row">
+
+      <div class="card">
+        <div class="card-title">Trade Levels</div>
+        <div class="levels-grid">
+          <div class="level-item">
+            <div class="level-label">Entry</div>
+            <div class="level-value entry" id="d-entry">$—</div>
+            <div class="level-note">Current market price</div>
+          </div>
+          <div class="level-item">
+            <div class="level-label">Stop Loss</div>
+            <div class="level-value stop" id="d-sl">$—</div>
+            <div class="level-note" id="d-sl-note">Exit if price hits this</div>
+          </div>
+          <div class="level-item">
+            <div class="level-label">Target 1</div>
+            <div class="level-value t1" id="d-t1">$—</div>
+            <div class="level-note">Take partial profit</div>
+          </div>
+          <div class="level-item">
+            <div class="level-label">Target 2</div>
+            <div class="level-value t2" id="d-t2">$—</div>
+            <div class="level-note">Full exit / trail stop</div>
+          </div>
+        </div>
+        <div class="rr-row">
+          <div class="rr-label">Risk / Reward</div>
+          <div class="rr-value" id="d-rr">—</div>
+          <div class="rr-label">: 1</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Indicator Snapshot</div>
+        <div class="ind-grid">
+          <div>
+            <div class="ind-row"><span class="ind-name">RSI (14)</span><span class="ind-val" id="i-rsi">—</span></div>
+            <div class="ind-row"><span class="ind-name">MACD</span><span class="ind-val cyan" id="i-macd">—</span></div>
+            <div class="ind-row"><span class="ind-name">MACD Signal</span><span class="ind-val" id="i-macd-sig">—</span></div>
+            <div class="ind-row"><span class="ind-name">MACD Hist</span><span class="ind-val" id="i-macd-hist">—</span></div>
+            <div class="ind-row"><span class="ind-name">Stoch K / D</span><span class="ind-val" id="i-stoch">—</span></div>
+            <div class="ind-row"><span class="ind-name">VWAP</span><span class="ind-val blue" id="i-vwap">—</span></div>
+          </div>
+          <div>
+            <div class="ind-row"><span class="ind-name">EMA 9</span><span class="ind-val" id="i-ema9">—</span></div>
+            <div class="ind-row"><span class="ind-name">EMA 21</span><span class="ind-val" id="i-ema21">—</span></div>
+            <div class="ind-row"><span class="ind-name">EMA 50</span><span class="ind-val" id="i-ema50">—</span></div>
+            <div class="ind-row"><span class="ind-name">BB Upper</span><span class="ind-val" id="i-bb-up">—</span></div>
+            <div class="ind-row"><span class="ind-name">BB Lower</span><span class="ind-val" id="i-bb-lo">—</span></div>
+            <div class="ind-row"><span class="ind-name">ATR (14)</span><span class="ind-val yellow" id="i-atr">—</span></div>
+            <div class="ind-row"><span class="ind-name">Support</span><span class="ind-val green" id="i-sup">—</span></div>
+            <div class="ind-row"><span class="ind-name">Resistance</span><span class="ind-val red" id="i-res">—</span></div>
+            <div class="ind-row"><span class="ind-name">Volume</span><span class="ind-val" id="i-vol">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Active Signals -->
+    <div class="bottom-row">
+      <div class="card">
+        <div class="card-title">Active Signals</div>
+        <div class="signals-list" id="d-signals"></div>
+      </div>
+    </div>
+
+    <!-- Scan meta -->
+    <div class="scan-info">
+      Last scan: <span id="d-scantime">—</span>
+      &nbsp;·&nbsp;
+      Candles: <span id="d-candles2">—</span>
+      &nbsp;·&nbsp;
+      Data: Yahoo Finance (no API key)
+    </div>
+
+  </div><!-- /#dashboard -->
+</main>
+
+<script>
+  let currentTicker = "";
+  let autoTimer = null;
+  let countdownTimer = null;
+  let secondsLeft = 180;
+
+  const tickerInput = document.getElementById("ticker-input");
+  const scanBtn     = document.getElementById("scan-btn");
+
+  // Allow pressing Enter in the input box
+  tickerInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") startScan();
+  });
+
+  function startScan() {
+    const t = tickerInput.value.trim().toUpperCase();
+    if (!t) { showError("Please enter a ticker symbol."); return; }
+
+    // Reset auto-refresh timers if ticker changed
+    if (t !== currentTicker) {
+      clearInterval(autoTimer);
+      clearInterval(countdownTimer);
+      autoTimer = null;
+    }
+
+    currentTicker = t;
+    doScan(t, true);
+  }
+
+  function doScan(ticker, resetAuto) {
+    setLoading(true);
+    hideError();
+
+    fetch(`/api/scan?ticker=${encodeURIComponent(ticker)}`)
+      .then(r => r.json())
+      .then(data => {
+        setLoading(false);
+        if (data.error) { showError(data.error); return; }
+        renderDashboard(data);
+
+        if (resetAuto) {
+          // Start / restart 3-minute auto-refresh
+          clearInterval(autoTimer);
+          clearInterval(countdownTimer);
+          secondsLeft = 180;
+          startCountdown();
+          autoTimer = setInterval(() => {
+            secondsLeft = 180;
+            doScan(currentTicker, false);
+          }, 180000);
+          document.getElementById("auto-section").style.display = "flex";
+        }
+      })
+      .catch(err => {
+        setLoading(false);
+        showError("Network error: " + err.message);
+      });
+  }
+
+  function startCountdown() {
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft < 0) secondsLeft = 180;
+      const m = Math.floor(secondsLeft / 60);
+      const s = String(secondsLeft % 60).padStart(2, "0");
+      document.getElementById("countdown").textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  function renderDashboard(d) {
+    // Show dashboard, hide placeholder
+    document.getElementById("placeholder").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+
+    // Price
+    document.getElementById("d-ticker").textContent = d.ticker;
+    document.getElementById("d-price").textContent  = "$" + d.price.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:4});
+    document.getElementById("d-candles").textContent  = d.num_candles + " 3-min candles loaded";
+    document.getElementById("d-candles2").textContent = d.num_candles;
+    document.getElementById("d-scantime").textContent = d.scan_time;
+
+    // Signal badge
+    const badge = document.getElementById("d-badge");
+    const icons = { BUY: "▲", SELL: "▼", HOLD: "■" };
+    badge.textContent = (icons[d.action] || "■") + "  " + d.action;
+    badge.className = "signal-badge " + d.action;
+
+    document.getElementById("d-bull").textContent = d.bull;
+    document.getElementById("d-bear").textContent = d.bear;
+
+    // Confidence
+    document.getElementById("d-conf").textContent = d.confidence + "%";
+    const bar = document.getElementById("d-conf-bar");
+    bar.style.width = d.confidence + "%";
+    const barColor = d.action === "BUY" ? "var(--green)" : d.action === "SELL" ? "var(--red)" : "var(--yellow)";
+    bar.style.background = barColor;
+    const strength = d.confidence >= 70 ? "Strong" : d.confidence >= 55 ? "Moderate" : "Weak";
+    document.getElementById("d-conf-label").textContent = strength + " signal";
+
+    // Trade levels
+    const fmt = v => "$" + v.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:4});
+    document.getElementById("d-entry").textContent = fmt(d.entry);
+    document.getElementById("d-sl").textContent    = fmt(d.stop_loss);
+    document.getElementById("d-t1").textContent    = fmt(d.target1);
+    document.getElementById("d-t2").textContent    = fmt(d.target2);
+    document.getElementById("d-rr").textContent    = d.rr;
+    document.getElementById("d-sl-note").textContent =
+      d.action === "SELL" ? "Exit if price rises here" : "Exit if price drops here";
+
+    // Indicators
+    const ind = d.indicators;
+    const rsiVal = ind.rsi;
+    const rsiEl  = document.getElementById("i-rsi");
+    rsiEl.textContent = rsiVal.toFixed(1);
+    rsiEl.className = "ind-val " + (rsiVal < 35 ? "green" : rsiVal > 65 ? "red" : "yellow");
+
+    document.getElementById("i-macd").textContent      = ind.macd.toFixed(4);
+    document.getElementById("i-macd-sig").textContent  = ind.macd_sig.toFixed(4);
+    const histEl = document.getElementById("i-macd-hist");
+    histEl.textContent  = (ind.macd_hist >= 0 ? "+" : "") + ind.macd_hist.toFixed(4);
+    histEl.className    = "ind-val " + (ind.macd_hist >= 0 ? "green" : "red");
+
+    document.getElementById("i-stoch").textContent    = ind.stk_k.toFixed(1) + " / " + ind.stk_d.toFixed(1);
+    document.getElementById("i-vwap").textContent     = "$" + ind.vwap.toFixed(4);
+    document.getElementById("i-ema9").textContent     = "$" + ind.ema9.toFixed(2);
+    document.getElementById("i-ema21").textContent    = "$" + ind.ema21.toFixed(2);
+    document.getElementById("i-ema50").textContent    = "$" + ind.ema50.toFixed(2);
+    document.getElementById("i-bb-up").textContent    = "$" + ind.bb_upper.toFixed(4);
+    document.getElementById("i-bb-lo").textContent    = "$" + ind.bb_lower.toFixed(4);
+    document.getElementById("i-atr").textContent      = "$" + ind.atr.toFixed(4);
+    document.getElementById("i-sup").textContent      = "$" + ind.support.toFixed(4);
+    document.getElementById("i-res").textContent      = "$" + ind.resistance.toFixed(4);
+
+    const volSpike = ind.vol_avg && ind.volume > ind.vol_avg * 1.5;
+    const volEl = document.getElementById("i-vol");
+    volEl.textContent = ind.volume.toLocaleString() + (volSpike ? " ⚡ SPIKE" : "");
+    volEl.className = "ind-val " + (volSpike ? "yellow" : "");
+
+    // Signals list
+    const sigList = document.getElementById("d-signals");
+    sigList.innerHTML = "";
+    d.signals.forEach(s => {
+      const div = document.createElement("div");
+      div.className = "sig-item " + s.direction;
+      const badge = document.createElement("span");
+      badge.className = "sig-badge " + s.direction;
+      badge.textContent = s.direction === "BULL" ? "▲ BULL" : "▼ BEAR";
+      const text = document.createElement("span");
+      text.textContent = s.desc;
+      div.appendChild(badge);
+      div.appendChild(text);
+      sigList.appendChild(div);
+    });
+  }
+
+  function setLoading(on) {
+    document.getElementById("spinner").style.display = on ? "block" : "none";
+    scanBtn.disabled = on;
+    document.getElementById("scan-status").textContent = on ? "Fetching data…" : "Scan complete";
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("error-box");
+    el.textContent = "⚠ " + msg;
+    el.style.display = "block";
+  }
+
+  function hideError() {
+    document.getElementById("error-box").style.display = "none";
+  }
+</script>
+</body>
+</html>
