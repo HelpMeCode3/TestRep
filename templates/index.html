@@ -440,8 +440,13 @@ function scanPanel(idx) {
       if (data.error) {
         showPanelError(idx, data.error);
       } else {
-        renderPanel(idx, data);
-        ensureAutoRefresh();
+        try {
+          renderPanel(idx, data);
+          ensureAutoRefresh();
+        } catch (renderErr) {
+          showPanelError(idx, 'Render error: ' + renderErr.message);
+          console.error('renderPanel error for panel', idx, renderErr);
+        }
       }
       updateHeader();
     })
@@ -521,7 +526,8 @@ function renderPanel(idx, d) {
   document.getElementById(`bx-${idx}`).style.display = '';
 
   // Chart
-  loadChart(idx, d.chart.candles, d.chart.vwap);
+  const chartData = d.chart || {};
+  loadChart(idx, chartData.candles || [], chartData.vwap || []);
 
   // Trade levels row
   const levelsEl = document.getElementById(`levels-${idx}`);

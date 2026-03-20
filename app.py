@@ -71,26 +71,31 @@ def scan():
     i = safe_int
 
     # ── Chart data ─────────────────────────────────────────────────────────────
-    df_chart   = df.tail(CHART_CANDLES)
-    vwap_full  = compute_vwap(df["High"], df["Low"], df["Close"], df["Volume"])
-    vwap_chart = vwap_full.tail(CHART_CANDLES)
+    candles   = []
+    vwap_data = []
+    try:
+        df_chart   = df.tail(CHART_CANDLES)
+        vwap_full  = compute_vwap(df["High"], df["Low"], df["Close"], df["Volume"])
+        vwap_chart = vwap_full.tail(CHART_CANDLES)
 
-    candles = [
-        {
-            "time":  to_unix(row.Index),
-            "open":  round(float(row.Open),  4),
-            "high":  round(float(row.High),  4),
-            "low":   round(float(row.Low),   4),
-            "close": round(float(row.Close), 4),
-        }
-        for row in df_chart.itertuples()
-    ]
+        candles = [
+            {
+                "time":  to_unix(row.Index),
+                "open":  round(float(row.Open),  4),
+                "high":  round(float(row.High),  4),
+                "low":   round(float(row.Low),   4),
+                "close": round(float(row.Close), 4),
+            }
+            for row in df_chart.itertuples()
+        ]
 
-    vwap_data = [
-        {"time": to_unix(idx), "value": round(float(val), 4)}
-        for idx, val in zip(df_chart.index, vwap_chart)
-        if not math.isnan(float(val))
-    ]
+        vwap_data = [
+            {"time": to_unix(idx), "value": round(float(val), 4)}
+            for idx, val in zip(df_chart.index, vwap_chart)
+            if not (math.isnan(float(val)) or math.isinf(float(val)))
+        ]
+    except Exception as exc:
+        print(f"[WARN] chart data generation failed for {ticker}: {exc}")
 
     return jsonify({
         "ticker":      ticker,
