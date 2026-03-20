@@ -12,7 +12,7 @@ import math
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stock_bot import fetch_3min_candles, analyze, vwap as compute_vwap
 
 app = Flask(__name__)
