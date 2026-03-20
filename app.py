@@ -8,6 +8,7 @@ Then open http://localhost:5000 in your browser
 
 from flask import Flask, render_template, jsonify, request
 from datetime import datetime
+import math
 import sys
 import os
 
@@ -41,45 +42,61 @@ def scan():
 
     ind = result["ind"]
 
+    def f(v, decimals=4):
+        """Convert numpy float to Python float, return 0.0 if NaN."""
+        try:
+            val = float(v)
+            return round(val, decimals) if not math.isnan(val) else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    def i(v):
+        """Convert numpy int/float to Python int, return 0 if NaN."""
+        try:
+            val = float(v)
+            return int(val) if not math.isnan(val) else 0
+        except (TypeError, ValueError):
+            return 0
+
     payload = {
-        "ticker":     ticker,
-        "scan_time":  datetime.now().strftime("%Y-%m-%d  %H:%M:%S"),
+        "ticker":      ticker,
+        "scan_time":   datetime.now().strftime("%Y-%m-%d  %H:%M:%S"),
         "num_candles": len(df),
 
         # Signal
         "action":     result["action"],
-        "confidence": round(result["confidence"], 1),
-        "bull":       result["bull"],
-        "bear":       result["bear"],
+        "confidence": f(result["confidence"], 1),
+        "bull":       int(result["bull"]),
+        "bear":       int(result["bear"]),
 
         # Trade levels
-        "price":      round(ind["price"], 4),
-        "entry":      round(result["entry"], 4),
-        "stop_loss":  round(result["stop_loss"], 4),
-        "target1":    round(result["target1"], 4),
-        "target2":    round(result["target2"], 4),
-        "rr":         round(result["rr"], 2),
+        "price":     f(ind["price"], 4),
+        "entry":     f(result["entry"], 4),
+        "stop_loss": f(result["stop_loss"], 4),
+        "target1":   f(result["target1"], 4),
+        "target2":   f(result["target2"], 4),
+        "rr":        f(result["rr"], 2),
 
         # Indicators
         "indicators": {
-            "rsi":        round(ind["rsi"], 2),
-            "macd":       round(ind["macd"], 4),
-            "macd_sig":   round(ind["macd_sig"], 4),
-            "macd_hist":  round(ind["hist"], 4),
-            "stk_k":      round(ind["stk_k"], 1),
-            "stk_d":      round(ind["stk_d"], 1),
-            "vwap":       round(ind["vwap"], 4),
-            "ema9":       round(ind["ema9"], 2),
-            "ema21":      round(ind["ema21"], 2),
-            "ema50":      round(ind["ema50"], 2),
-            "bb_upper":   round(ind["bb_up"], 4),
-            "bb_mid":     round(ind["bb_mid"], 4),
-            "bb_lower":   round(ind["bb_lo"], 4),
-            "atr":        round(ind["atr"], 4),
-            "support":    round(ind["support"], 4),
-            "resistance": round(ind["resistance"], 4),
-            "volume":     int(ind["volume"]),
-            "vol_avg":    int(ind["vol_avg"]) if ind["vol_avg"] else 0,
+            "rsi":        f(ind["rsi"], 2),
+            "macd":       f(ind["macd"], 4),
+            "macd_sig":   f(ind["macd_sig"], 4),
+            "macd_hist":  f(ind["hist"], 4),
+            "stk_k":      f(ind["stk_k"], 1),
+            "stk_d":      f(ind["stk_d"], 1),
+            "vwap":       f(ind["vwap"], 4),
+            "ema9":       f(ind["ema9"], 2),
+            "ema21":      f(ind["ema21"], 2),
+            "ema50":      f(ind["ema50"], 2),
+            "bb_upper":   f(ind["bb_up"], 4),
+            "bb_mid":     f(ind["bb_mid"], 4),
+            "bb_lower":   f(ind["bb_lo"], 4),
+            "atr":        f(ind["atr"], 4),
+            "support":    f(ind["support"], 4),
+            "resistance": f(ind["resistance"], 4),
+            "volume":     i(ind["volume"]),
+            "vol_avg":    i(ind["vol_avg"]),
         },
 
         # Active signals list
@@ -97,4 +114,4 @@ if __name__ == "__main__":
     print("  Stock Trading Bot  —  Web Dashboard")
     print("  Open your browser to:  http://localhost:5000")
     print("=" * 55 + "\n")
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
