@@ -7,12 +7,20 @@
 
 .DESCRIPTION
     Searches AD for enabled user accounts that have not logged in for 60 days
-    or more, disables those accounts, and exports a report to CSV in
-    C:\temp\DisabledUsers with the current date in the filename.
+    or more — including accounts that have NEVER logged in — disables those
+    accounts, and exports a dated CSV report to the specified folder.
 
 .NOTES
     Intended to run as a Scheduled Task with an account that has permission
     to disable AD users.
+
+.EXAMPLE
+    # Dry run — see what would be disabled without making changes
+    .\Disable-InactiveUsers.ps1 -WhatIf
+
+.EXAMPLE
+    # Target a specific OU and use a custom inactivity threshold
+    .\Disable-InactiveUsers.ps1 -InactiveDays 90 -SearchBase 'OU=Staff,DC=contoso,DC=com'
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -30,10 +38,12 @@ param (
 # -------------------------------------------------------------------------
 # Setup
 # -------------------------------------------------------------------------
-$today        = Get-Date
-$cutoffDate   = $today.AddDays(-$InactiveDays)
-$dateStamp    = $today.ToString('yyyy-MM-dd')
-$reportFile   = Join-Path -Path $ReportFolder -ChildPath "DisabledUsers_$dateStamp.csv"
+Import-Module ActiveDirectory
+
+$today      = Get-Date
+$cutoffDate = $today.AddDays(-$InactiveDays)
+$dateStamp  = $today.ToString('yyyy-MM-dd')
+$reportFile = Join-Path -Path $ReportFolder -ChildPath "DisabledUsers_$dateStamp.csv"
 
 # Ensure the output folder exists
 if (-not (Test-Path -Path $ReportFolder)) {
@@ -42,11 +52,13 @@ if (-not (Test-Path -Path $ReportFolder)) {
 }
 
 # -------------------------------------------------------------------------
-# Query Active Directory for inactive, enabled users
+# Query AD — pull all enabled users, then filter in PowerShell so that
+# accounts with a NULL LastLogonDate (never logged in) are also caught.
 # -------------------------------------------------------------------------
 $adParams = @{
-    Filter     = { Enabled -eq $true -and LastLogonDate -lt $cutoffDate }
-    Properties = 'DisplayName', 'SamAccountName', 'LastLogonDate',
+    Filter     = { Enabled -eq $true }
+    Properties = 'DisplayName', 'SamAccountName', 'UserPrincipalName',
+                 'LastLogonDate', 'whenCreated', 'PasswordLastSet',
                  'EmailAddress', 'Department', 'Manager', 'DistinguishedName'
 }
 
@@ -54,8 +66,11 @@ if ($SearchBase -ne '') {
     $adParams['SearchBase'] = $SearchBase
 }
 
-Write-Host "Searching for users inactive since $($cutoffDate.ToString('yyyy-MM-dd'))..."
-$inactiveUsers = Get-ADUser @adParams | Sort-Object LastLogonDate
+Write-Host "Searching for users inactive since $($cutoffDate.ToString('yyyy-MM-dd')) (or never logged in)..."
+
+$inactiveUsers = Get-ADUser @adParams | Where-Object {
+    ($_.LastLogonDate -eq $null) -or ($_.LastLogonDate -lt $cutoffDate)
+} | Sort-Object LastLogonDate
 
 if (-not $inactiveUsers) {
     Write-Host "No inactive users found. No changes made."
@@ -68,7 +83,6 @@ Write-Host "$($inactiveUsers.Count) inactive user(s) found."
 # Disable each user and collect report data
 # -------------------------------------------------------------------------
 $report = foreach ($user in $inactiveUsers) {
-    $disabledOn  = $today.ToString('yyyy-MM-dd HH:mm:ss')
     $disableError = $null
 
     if ($PSCmdlet.ShouldProcess($user.SamAccountName, "Disable AD account")) {
@@ -83,8 +97,10 @@ $report = foreach ($user in $inactiveUsers) {
     }
 
     [PSCustomObject]@{
-        DisplayName       = $user.DisplayName
+        Name              = $user.Name
         SamAccountName    = $user.SamAccountName
+        UserPrincipalName = $user.UserPrincipalName
+        DisplayName       = $user.DisplayName
         EmailAddress      = $user.EmailAddress
         Department        = $user.Department
         Manager           = $user.Manager
@@ -94,16 +110,29 @@ $report = foreach ($user in $inactiveUsers) {
         DaysSinceLogon    = if ($user.LastLogonDate) {
                                 ($today - $user.LastLogonDate).Days
                             } else { 'N/A' }
-        DisabledOn        = $disabledOn
+        whenCreated       = $user.whenCreated.ToString('yyyy-MM-dd')
+        PasswordLastSet   = if ($user.PasswordLastSet) {
+                                $user.PasswordLastSet.ToString('yyyy-MM-dd')
+                            } else { 'Never' }
+        DisabledOn        = $today.ToString('yyyy-MM-dd HH:mm:ss')
         DistinguishedName = $user.DistinguishedName
         Error             = $disableError
     }
 }
 
 # -------------------------------------------------------------------------
-# Export report to CSV
+# Export CSV report
 # -------------------------------------------------------------------------
 $report | Export-Csv -Path $reportFile -NoTypeInformation -Encoding UTF8
 
 Write-Host "Report saved to: $reportFile"
-Write-Host "Done. $($report.Count) user(s) processed."
+Write-Host ""
+
+# -------------------------------------------------------------------------
+# Console summary (mirrors your original Format-Table output)
+# -------------------------------------------------------------------------
+$report |
+    Select-Object Name, SamAccountName, UserPrincipalName, LastLogonDate, DaysSinceLogon, DisabledOn |
+    Format-Table -AutoSize
+
+Write-Host "Done. $($report.Count) user(s) disabled."
