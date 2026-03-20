@@ -32,7 +32,12 @@ param (
     [string]$ReportFolder = 'C:\temp\DisabledUsers',
 
     # OU to search (leave empty to search entire domain)
-    [string]$SearchBase = ''
+    [string]$SearchBase = '',
+
+    # OUs to exclude — any user whose DistinguishedName contains one of these
+    # strings will be skipped. Accepts partial OU paths.
+    # Example: 'OU=IT,DC=contoso,DC=com','OU=ServiceAccounts,DC=contoso,DC=com'
+    [string[]]$ExcludedOUs = @()
 )
 
 # -------------------------------------------------------------------------
@@ -69,7 +74,11 @@ if ($SearchBase -ne '') {
 Write-Host "Searching for users inactive since $($cutoffDate.ToString('yyyy-MM-dd')) (or never logged in)..."
 
 $inactiveUsers = Get-ADUser @adParams | Where-Object {
-    ($_.LastLogonDate -eq $null) -or ($_.LastLogonDate -lt $cutoffDate)
+    $dn = $_.DistinguishedName
+    # Must be inactive or never logged in
+    (($_.LastLogonDate -eq $null) -or ($_.LastLogonDate -lt $cutoffDate)) -and
+    # Must not belong to any excluded OU
+    (-not ($ExcludedOUs | Where-Object { $dn -like "*$_*" }))
 } | Sort-Object LastLogonDate
 
 if (-not $inactiveUsers) {
